@@ -1,0 +1,30 @@
+---
+title: "esm244_assignment1_part1_LBleifuss"
+author: "Lydia Bleifuss"
+date: "1/28/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE, messages = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(janitor)
+library(here)
+
+```
+
+```{r}
+bunnies <- read_csv(here("Assignment 1 data-20200128","showshoe_lter.csv")) %>% 
+  clean_names() 
+```
+
+
+```{r}
+gg_miss_var(bunnies)
+```
+
+```{r}
+bunnies_plot <- ggplot(date = bunnies)
+```
+

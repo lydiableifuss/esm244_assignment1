@@ -1,0 +1,158 @@
+---
+title: "esm244_assignment_1_part2_LBleifuss"
+author: "Lydia Bleifuss"
+date: "2/1/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE, message = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(janitor)
+library(naniar)
+library(VIM)
+library(skimr)
+library(ggfortify)
+library(here)
+```
+
+```{r}
+## 1. Read in the data
+
+env_data <- read_csv(here("Assignment 1 data-20200128","world_env_vars.csv"))
+
+```
+
+```{r}
+#2.  Basic cleanign and wrangling before exploration and more cleaning 
+
+env_clean <- env_data %>% 
+  clean_names() %>% #makes column headings lower case and with no spaces (_ instead)
+   mutate(country = str_to_lower(country)) %>% #county column rows were capitalized so I changed to make coding easier
+  
+```
+
+```{r}
+#3. Explore missingness to get to know which variable may be more descriptive than others and where selection bias may come into play 
+
+summary(env_clean) #Want to see where there are NA values
+
+#Most variables have ~6 NAs, however, wind has 55 our of 243 values missing and therefore will likely want to exclude from the analysis 
+
+gg_miss_var(env_clean) #wanted to check the summary analysis above, using gg_miss_var to which creates a very helpful graph indicating which variables have the most missingness, in this case it is wind (far and away more NAs) 
+
+matrixplot(env_clean) #higher values are darker and red indicates NAs 
+
+matrixplot(env_clean, sortby = "tree_canopy_cover") #sorted by a few speciic variables, organizing variable values from high to low, to see what other values display a similar gradient and therefore may be more correlated 
+
+
+```
+
+
+Remove (complete case deletion) any observation with ANY NA values: #using "ANY NA, it will remove any ROW that has a missing variable"
+
+```{r}
+#5. Remove NAs now having an understanding for where they are/how many 
+
+env_no_na <- env_clean %>%
+  drop_na() %>% 
+  select(-wind, -country) #got rid of wind because too many NAs, took out country because PCA needs to have only numeric values, and also 
+
+summary(env_no_na) #now I see that NAs are gone and total observations adjusted accordingly 
+
+skim(env_no_na) #more in depth summary, also tells me that all columns besides character "country" are numeric 
+```
+
+```{r, eval = FALSE}
+#Need to add "eval - FALSE" to header so R doesn't run when knitting 
+
+#5. PCA Analysis 
+
+#ERROR, good example 
+env_pca<- prcomp(env_no_na, scale = TRUE) #normalizing the scales accross units
+
+```
+
+
+```{r}
+my_ca_pca <- prcomp(ca_pb_nona, scale = TRUE)  
+
+my_ca_pca
+summary(my_ca_pca) #shows how much (proportion) of the variance is explained by each principle component (PC#)
+
+#biplot(my_ca_pca) #scary, moving on to autoplot
+
+#going to use auto plot which is why we installed fortify 
+
+my_biplot <- autoplot(my_ca_pca,
+                      colour = NA,
+                      loadings.label = TRUE,
+                      loadings.label.size = 3,
+                      loadings.label.colour = "black",
+                      loadings.label.repel = TRUE)+
+scale_y_continuous(limits = c(-0.05, 0.05))
+
+my_biplot
+
+#this is only representing about 33% of varience, not great but...
+
+#positively correlated: unemployment and poverty 
+#no correlation: ozone and diesel_pm
+#negatively correlation: drinking_water, groundwater_threats 
+
+#because autoplot works with ggplot, you can use ggplot techniques to start customizing, but, lets look at what variables could be correlated to explor that 
+```
+
+## 4. PCA for polluiton burden + demographics 
+
+Join together the ca_dem_clean with ca_pb_nopct and we will drop all of the NAs once we have joined them
+
+```{r}
+##you can always use full join to keep everything! Then you can decide what to drop. (MERGE is the SAME, it's just the base r version)
+
+ca_df <- ca_dem_clean %>% 
+  inner_join(ca_pb_nopct, by = c("census_tract_number" = "census_tract")) #use c because then you can add a comma and add more, the left of the = corresponds to the left dataframe
+
+#Now drop NAs by complete case deletion:
+
+ca_nona <- ca_df %>% 
+  drop_na()
+
+```
+
+Make a subset of ca_nona that only includes: 
+
+- white_percent
+- elderly_65_percent
+- pm2_5
+- pesticides
+- traffic
+- asthma
+- cardiovascular_disease
+- poverty 
+
+```{r}
+my_sub <- ca_nona %>% 
+  select(white_percent,white_percent, elderly_65_percent, pm2_5, pesticides, traffic, asthma, cardiovascular_disease, poverty)
+```
+
+PCA:
+```{r}
+my_dem_pca <- prcomp(my_sub, scale = TRUE)
+
+my_dem_biplot <- autoplot(my_dem_pca,
+                      colour = NA,
+                      loadings.label = TRUE,
+                      loadings.label.size = 3,
+                      loadings.label.colour = "black",
+                      loadings.label.repel = TRUE)+
+scale_y_continuous(limits = c(-0.05, 0.05))+
+  theme_minimal()
+
+my_dem_biplot #this explains over 50% (add 36.14% plut 16.04%) so that's nice 
+```
+
+
+```
+
