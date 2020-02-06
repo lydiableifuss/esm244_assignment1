@@ -1,0 +1,16 @@
+---
+title: "esm244_assign_1_bleifuss"
+author: "Lydia Bleifuss"
+date: "2/2/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Assignment 1 - ESM 244 (Winter 2020) All parts due by 2:00pm on Thursday 2019-02-06
+Data wrangling & viz, principal components analysis, and outlining your Shiny app
+● Tasks 1 & 2: Submit individual knitted HTML for Tasks 1 & 2 through GauchoSpace
+
+

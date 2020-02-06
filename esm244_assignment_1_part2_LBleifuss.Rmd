@@ -1,13 +1,12 @@
 ---
-title: "esm244_assignment_1_part2_LBleifuss"
+title: "ESM 244 - Assignment 1 - Part 2"
 author: "Lydia Bleifuss"
-date: "2/1/2020"
+date: "2/04/2020"
 output: html_document
 ---
 
-```{r setup, include=FALSE, message = FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 library(tidyverse)
 library(janitor)
 library(naniar)
@@ -15,144 +14,116 @@ library(VIM)
 library(skimr)
 library(ggfortify)
 library(here)
+library(plyr)
+library(ggplot2)
+library(kableExtra)
 ```
 
+###Part Two: 
+
+
+
+
+#####1] Introductory Summary
+
+
+The remote sensing environmental dataset used in this analysis was compiled from Google Earth Engine by Zander Venter and provided as an open access file. The data is country specific, and averages of 10 km grids are used to derive one value per category for each included country, 243 countries in total. Seven landscape and meteorological categories were selected in this project for a Principle Components Analysis, the results of which are illustrated and discussed below.
+
+
+Data Citation: Compiled and provided by @zander_venter on Kaggle, described as: “This data is all acquired through Google Earth Engine (https://earthengine.google.com/) where publicly available remote sensing datasets have been uploaded...Most of the data is derived by calculating the mean for each country at a reduction scale of about 10km.”
+
+#####2] Code
+
+
+**2(A).** Read in the data (Miscellaneous environmental and climatic variables (country-level)).
+
 ```{r}
-## 1. Read in the data
-
-env_data <- read_csv(here("Assignment 1 data-20200128","world_env_vars.csv"))
-
+env_data <- read_csv(here::here("Assignment 1 data-20200128","world_env_vars.csv")) #Used here::here because another package has 'here.' 
 ```
 
-```{r}
-#2.  Basic cleanign and wrangling before exploration and more cleaning 
 
+**2(B).** Basic cleaning and wrangling before exploration and more cleaning.
+
+```{r}
 env_clean <- env_data %>% 
-  clean_names() %>% #makes column headings lower case and with no spaces (_ instead)
-   mutate(country = str_to_lower(country)) %>% #county column rows were capitalized so I changed to make coding easier
-  
+  clean_names() %>% #Make column headings lower case and with no spaces.
+   mutate(country = str_to_lower(country)) #County column rows were capitalized so I changed to make coding easier. 
 ```
+
+
+**2(C).** Explore missingness to get to know which variables may be more descriptive than others and where selection bias may come into play.
 
 ```{r}
-#3. Explore missingness to get to know which variable may be more descriptive than others and where selection bias may come into play 
+env_summary <- summary(env_clean) #Want to see where there are NA values.
 
-summary(env_clean) #Want to see where there are NA values
+#Note: Most variables have ~6 NAs, however, 'wind' has 55 our of 243 values missing and therefore will likely want to exclude from the analysis. 
 
-#Most variables have ~6 NAs, however, wind has 55 our of 243 values missing and therefore will likely want to exclude from the analysis 
+env_miss_var <- gg_miss_var(env_clean) #Want to check the summary analysis above, using gg_miss_var, which creates a very helpful graph indicating which variables have the most missingness, in this case it is 'wind' (far and away more NAs). 
 
-gg_miss_var(env_clean) #wanted to check the summary analysis above, using gg_miss_var to which creates a very helpful graph indicating which variables have the most missingness, in this case it is wind (far and away more NAs) 
+#matrix_env <- matrixplot(env_clean, sortby = "tree_canopy_cover") 
 
-matrixplot(env_clean) #higher values are darker and red indicates NAs 
-
-matrixplot(env_clean, sortby = "tree_canopy_cover") #sorted by a few speciic variables, organizing variable values from high to low, to see what other values display a similar gradient and therefore may be more correlated 
-
-
+#Higher values are darker and red indicates NAs. Sorted by a few speciic variables, organizing variable values from high to low, to see what other values display a similar gradient and therefore may be more correlated.
 ```
 
 
-Remove (complete case deletion) any observation with ANY NA values: #using "ANY NA, it will remove any ROW that has a missing variable"
+**2(D).** Remove NAs, with an understanding of where they occur and at what frequency, and use code to finalize cleaning for PCA analysis and graph.
 
 ```{r}
-#5. Remove NAs now having an understanding for where they are/how many 
+env_no_na_clean <- env_clean %>%
+  drop_na() %>% #Take out NAs.
+  select(-wind, -country, -rain_coldest_quart, -rain_driest_month, -rain_driest_quart, -rain_warmest_quart, -rain_wettest_month, -rain_wettest_quart, -rain_mean_annual,-rain_seasonailty, -temp_coldest_quart, -temp_diurnal_range, -temp_driest_quart, -temp_max_warmest_month, -temp_min_coldest_month, -temp_warmest_quart, -temp_wettest_quart, -temp_annual_range, -temp_seasonality,-aspect, -accessibility_to_cities) #Took out: 'wind' because of too many NAs, 'country' because PCA needs to have only numeric values, simplified the rain and temp columns (chose to keep most general version of each), also took out 'aspect' and 'accessibility to cities.'
 
-env_no_na <- env_clean %>%
-  drop_na() %>% 
-  select(-wind, -country) #got rid of wind because too many NAs, took out country because PCA needs to have only numeric values, and also 
+env_no_na <- rename(env_no_na_clean, c('elevation' = 'Elevation', 'slope' = 'Slope', 'cropland_cover' = 'Cropland Cover', 'cloudiness' = 'Cloudiness', 'temp_mean_annual' = 'Mean Annual Temp.', 'isothermality' = 'Isothermality', 'tree_canopy_cover' = 'Tree Canopy Cover')) #Renamed after deciding to keep these variables in biplot to make the graph look more clean.
 
-summary(env_no_na) #now I see that NAs are gone and total observations adjusted accordingly 
+sum_env_nona <- summary(env_no_na) #Now I see that NAs are gone and total observations adjusted accordingly. 
 
-skim(env_no_na) #more in depth summary, also tells me that all columns besides character "country" are numeric 
+skim_env_nona <- skim(env_no_na) #More in depth summary. Also tells me that all columns besides character "country" are numeric.
 ```
 
-```{r, eval = FALSE}
-#Need to add "eval - FALSE" to header so R doesn't run when knitting 
 
-#5. PCA Analysis 
-
-#ERROR, good example 
-env_pca<- prcomp(env_no_na, scale = TRUE) #normalizing the scales accross units
-
-```
-
+**2(E).** PCA Analysis and exploration of results. 
 
 ```{r}
-my_ca_pca <- prcomp(ca_pb_nona, scale = TRUE)  
+env_pca <- prcomp(env_no_na, scale = TRUE) #Creating PCA and using 'scale' to normalize variable scales accross units.
 
-my_ca_pca
-summary(my_ca_pca) #shows how much (proportion) of the variance is explained by each principle component (PC#)
+sum_pca <- summary(env_pca) #Looking at how much (proportion) of the variance is explained by each PC.
+```
 
-#biplot(my_ca_pca) #scary, moving on to autoplot
 
-#going to use auto plot which is why we installed fortify 
+**2(F).** Plot PCA Analysis. 
 
-my_biplot <- autoplot(my_ca_pca,
+```{r}
+env_biplot <- autoplot(env_pca,
                       colour = NA,
+                      loadings.colour = "coral3",
                       loadings.label = TRUE,
                       loadings.label.size = 3,
                       loadings.label.colour = "black",
-                      loadings.label.repel = TRUE)+
-scale_y_continuous(limits = c(-0.05, 0.05))
+                      loadings.label.repel = TRUE,
+                      loadings.label.vjust = 2
+                      ) +
+scale_y_continuous(limits = c(-0.22, 0.12)) +
+  scale_x_continuous(limits =c(-0.2, 0.12)) +
+  theme_classic() +
+   ggtitle("Principle Components Analysis of \nCountry Environmental Variables Dataset\n") +
+  labs(caption = "\nFigure 2. PCA of Country Environmental Variables.\nThe 7 variables included in this PCA plot describe 61% of varience within the dataset between 243 countries.") +
+  theme(plot.title = element_text(size=10)) +
+theme(plot.title = element_text(hjust = 0.5), plot.caption = element_text(hjust = 0)) +
+  xlab("\nPrinciple Component 1 (35.9%)") +
+ ylab("Principle Component 2 (26.1%)\n") #Formatting an appealing graphic.
 
-my_biplot
-
-#this is only representing about 33% of varience, not great but...
-
-#positively correlated: unemployment and poverty 
-#no correlation: ozone and diesel_pm
-#negatively correlation: drinking_water, groundwater_threats 
-
-#because autoplot works with ggplot, you can use ggplot techniques to start customizing, but, lets look at what variables could be correlated to explor that 
-```
-
-## 4. PCA for polluiton burden + demographics 
-
-Join together the ca_dem_clean with ca_pb_nopct and we will drop all of the NAs once we have joined them
-
-```{r}
-##you can always use full join to keep everything! Then you can decide what to drop. (MERGE is the SAME, it's just the base r version)
-
-ca_df <- ca_dem_clean %>% 
-  inner_join(ca_pb_nopct, by = c("census_tract_number" = "census_tract")) #use c because then you can add a comma and add more, the left of the = corresponds to the left dataframe
-
-#Now drop NAs by complete case deletion:
-
-ca_nona <- ca_df %>% 
-  drop_na()
-
-```
-
-Make a subset of ca_nona that only includes: 
-
-- white_percent
-- elderly_65_percent
-- pm2_5
-- pesticides
-- traffic
-- asthma
-- cardiovascular_disease
-- poverty 
-
-```{r}
-my_sub <- ca_nona %>% 
-  select(white_percent,white_percent, elderly_65_percent, pm2_5, pesticides, traffic, asthma, cardiovascular_disease, poverty)
-```
-
-PCA:
-```{r}
-my_dem_pca <- prcomp(my_sub, scale = TRUE)
-
-my_dem_biplot <- autoplot(my_dem_pca,
-                      colour = NA,
-                      loadings.label = TRUE,
-                      loadings.label.size = 3,
-                      loadings.label.colour = "black",
-                      loadings.label.repel = TRUE)+
-scale_y_continuous(limits = c(-0.05, 0.05))+
-  theme_minimal()
-
-my_dem_biplot #this explains over 50% (add 36.14% plut 16.04%) so that's nice 
+#This is representing about 26.05% + 35.94% = ~ 61% of varience, which is pretty good.
+env_biplot
 ```
 
 
-```
+#####3] PCA Summary
 
+**Major PCA Takeaways** 
+
+Based on the above biplot, which represents a total of ~61% of variance, four main correlations across countries include: 
+
+1. Elevation and slope are positively correlated. This correlation makes sense as increased slope generates significant changes to elevation. 
+2. Tree canopy cover and cloudiness are positively correlated, which is logical as more trees likely expel more water it the atmosphere (clouds) through evapotranspiration.
+3. Elevation and tree canopy cover are negatively correlated. This correlation is well represented in the real world by a decreasing amount of trees at higher elevations (tree-lines). 
+4. Cropland cover and isothermality are not correlated. Isothermality is similar to a measure of temperature evenness throughout a year. Cropland occurs in regions with extreme temperature changes throughout a year (e.g. Wisconsin) and also low yearly temperature variations (e.g. Arizona).
